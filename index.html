@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giám Sát Vườn Trồng - Lê Minh Quân</title>
+    <!-- Nhúng thư viện Tailwind CSS và MQTT.js qua CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+</head>
+<body class="bg-slate-100 font-sans p-6">
+    <div class="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6">
+        <h1 class="text-2xl font-bold text-emerald-700 text-center mb-2">🌿 Giám Sát Môi Trường Vườn Trồng Công Nghiệp</h1>
+        <p class="text-center text-gray-500 text-sm mb-6">Hệ thống IoT ESP32 - FreeRTOS - MQTT | Sinh viên: Lê Minh Quân</p>
+
+        <!-- Trạng thái kết nối MQTT -->
+        <div id="status" class="bg-amber-100 text-amber-800 p-3 rounded-lg text-center font-medium mb-6">
+            Đang kết nối tới MQTT Broker...
+        </div>
+
+        <!-- Khung hiển thị cảm biến -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-center">
+                <p class="text-gray-600 text-sm">Nhiệt độ không khí</p>
+                <p id="temp" class="text-4xl font-bold text-emerald-600 mt-2">-- °C</p>
+            </div>
+            <div class="bg-sky-50 p-4 rounded-xl border border-sky-200 text-center">
+                <p class="text-gray-600 text-sm">Độ ẩm không khí</p>
+                <p id="hum" class="text-4xl font-bold text-sky-600 mt-2">-- %</p>
+            </div>
+        </div>
+
+        <!-- Khung điều khiển thủ công thiết bị -->
+        <div class="border-t pt-6">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Điều khiển thiết bị thủ công</h2>
+            <div class="flex gap-4">
+                <button onclick="togglePump()" id="pumpBtn" class="flex-1 bg-gray-300 text-gray-700 font-bold py-3 px-4 rounded-lg transition">
+                    Máy Bơm: TẮT
+                </button>
+                <button onclick="toggleFan()" id="fanBtn" class="flex-1 bg-gray-300 text-gray-700 font-bold py-3 px-4 rounded-lg transition">
+                    Quạt Gió: TẮT
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Kết nối MQTT Broker công cộng qua WebSocket
+        const brokerUrl = 'wss://broker.emqx.io:8084/mqtt';
+        const client = mqtt.connect(brokerUrl);
+
+        let pumpState = false;
+        let fanState = false;
+
+        const statusEl = document.getElementById('status');
+        const tempEl = document.getElementById('temp');
+        const humEl = document.getElementById('hum');
+        const pumpBtn = document.getElementById('pumpBtn');
+        const fanBtn = document.getElementById('fanBtn');
+
+        client.on('connect', function () {
+            statusEl.className = "bg-emerald-100 text-emerald-800 p-3 rounded-lg text-center font-medium mb-6";
+            statusEl.innerText = "Đã kết nối thành công với MQTT Broker!";
+            client.subscribe('esp32/garden/telemetry');
+        });
+
+        client.on('error', function (err) {
+            statusEl.className = "bg-red-100 text-red-800 p-3 rounded-lg text-center font-medium mb-6";
+            statusEl.innerText = "Lỗi kết nối MQTT: " + err;
+        });
+
+        // Nhận dữ liệu telemetry từ ESP32 gửi lên
+        client.on('message', function (topic, payload) {
+            if (topic === 'esp32/garden/telemetry') {
+                const data = JSON.parse(payload.toString());
+                tempEl.innerText = data.temp.toFixed(1) + " °C";
+                humEl.innerText = data.hum.toFixed(1) + " %";
+            }
+        });
+
+        // Điều khiển Máy bơm
+        function togglePump() {
+            pumpState = !pumpState;
+            const cmd = pumpState ? "ON" : "OFF";
+            client.publish('esp32/garden/pump', cmd);
+            
+            pumpBtn.innerText = `Máy Bơm: ${pumpState ? "BẬT" : "TẮT"}`;
+            pumpBtn.className = `flex-1 font-bold py-3 px-4 rounded-lg transition ${pumpState ? 'bg-emerald-600 text-white' : 'bg-gray-300 text-gray-700'}`;
+        }
+
+        // Điều khiển Quạt
+        function toggleFan() {
+            fanState = !fanState;
+            const cmd = fanState ? "ON" : "OFF";
+            client.publish('esp32/garden/fan', cmd);
+            
+            fanBtn.innerText = `Quạt Gió: ${fanState ? "BẬT" : "TẮT"}`;
+            fanBtn.className = `flex-1 font-bold py-3 px-4 rounded-lg transition ${fanState ? 'bg-emerald-600 text-white' : 'bg-gray-300 text-gray-700'}`;
+        }
+    </script>
+</body>
+</html>
